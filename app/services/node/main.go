@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/PhyoYazar/blockchain/app/services/node/handlers"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/genesis"
 	"github.com/PhyoYazar/blockchain/foundation/logger"
 	"github.com/ardanlabs/conf/v3"
 	"go.uber.org/zap"
@@ -94,6 +95,15 @@ func run(log *zap.SugaredLogger) error {
 		return fmt.Errorf("generating config for output: %w", err)
 	}
 	log.Infow("startup", "config", out)
+
+	// =========================================================================
+	// Blockchain Support
+
+	gen, err := genesis.Load()
+	if err != nil {
+		return fmt.Errorf("genesis load: %w", err)
+	}
+	log.Infow("startup", "gen", gen)
 
 	// =========================================================================
 	// Start Debug Service
