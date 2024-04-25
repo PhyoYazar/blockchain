@@ -3,7 +3,9 @@ package main
 import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 
@@ -11,12 +13,14 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	err := sign()
+
+	if err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func run() error {
+func sign() error {
 	// Need to load the private key file for the configured beneficiary so the
 	// account can get credited with fees and tips.
 	path := fmt.Sprintf("%s%s.ecdsa", "zblock/accounts/", "kennedy")
@@ -34,28 +38,43 @@ func run() error {
 		Name: "Bill",
 	}
 
-	data, err := json.Marshal(v)
+	data, err := stamp(v)
 	if err != nil {
-		return err
+		return fmt.Errorf("stamp: %w", err)
 	}
 
-	// Hash the transaction data into a 32 byte array. This will provide
-	// a data length consistency with all transactions.
-	txHash := crypto.Keccak256(data)
-
 	// Sign the hash with the private key to produce a signature.
-	sig, err := crypto.Sign(txHash, privateKey)
+	sig, err := crypto.Sign(data, privateKey)
 	if err != nil {
 		return fmt.Errorf("signature error: %w", err)
 	}
 
-	fmt.Println("SIG: ", sig)
+	fmt.Printf("SIG: 0x%s\n", hex.EncodeToString(sig))
 
 	// =========================================================================
 
-	sigPublicKey, err := crypto.Ecrecover(txHash, sig)
+	v2 := struct {
+		Name string `json:"name"`
+	}{
+		Name: "Bills",
+	}
+
+	data2, err := stamp(v2)
+	if err != nil {
+		return fmt.Errorf("stamp: %w", err)
+	}
+
+	// =========================================================================
+
+	sigPublicKey, err := crypto.Ecrecover(data2, sig)
 	if err != nil {
 		return err
+	}
+
+	// Check the public key validates the data and signature.
+	rs := sig[:crypto.RecoveryIDOffset]
+	if !crypto.VerifySignature(sigPublicKey, data2, rs) {
+		return errors.New("invalid signature produced")
 	}
 
 	// Capture the public key associated with this signature.
@@ -63,9 +82,31 @@ func run() error {
 	publicKey := ecdsa.PublicKey{Curve: crypto.S256(), X: x, Y: y}
 
 	// Extract the account address from the public key.
-
 	address := crypto.PubkeyToAddress(publicKey).String()
 	fmt.Println(address)
 
 	return nil
+}
+
+// =============================================================================
+
+// stamp returns a hash of 32 bytes that represents this data with
+// the Ardan stamp embedded into the final hash.
+func stamp(value any) ([]byte, error) {
+
+	// Marshal the data.
+	v, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+
+	// This stamp is used so signatures we produce when signing data
+	// are always unique to the Ardan blockchain.
+	stamp := []byte(fmt.Sprintf("\x19Ardan Signed Message:\n%d", len(v)))
+
+	// Hash the stamp and txHash together in a final 32 byte array
+	// that represents the data.
+	data := crypto.Keccak256(stamp, v)
+
+	return data, nil
 }
