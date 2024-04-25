@@ -4,11 +4,13 @@ package signature
 
 import (
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -19,6 +21,19 @@ const ZeroHash string = "0x00000000000000000000000000000000000000000000000000000
 // clear that the signature comes from the Ardan blockchain.
 // Ethereum and Bitcoin do this as well, but they use the value of 27.
 const ardanID = 29
+
+// =============================================================================
+
+// Hash returns a unique string for the value.
+func Hash(value any) string {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return ZeroHash
+	}
+
+	hash := sha256.Sum256(data)
+	return hexutil.Encode(hash[:])
+}
 
 // Sign uses the specified private key to sign the data.
 func Sign(value any, privateKey *ecdsa.PrivateKey) (v, r, s *big.Int, err error) {
@@ -53,6 +68,77 @@ func Sign(value any, privateKey *ecdsa.PrivateKey) (v, r, s *big.Int, err error)
 	v, r, s = toSignatureValues(sig)
 
 	return v, r, s, nil
+}
+
+// VerifySignature verifies the signature conforms to our standards.
+func VerifySignature(v, r, s *big.Int) error {
+
+	// Check the recovery id is either 0 or 1.
+	uintV := v.Uint64() - ardanID
+	if uintV != 0 && uintV != 1 {
+		return errors.New("invalid recovery id")
+	}
+
+	// Check the signature values are valid.
+	if !crypto.ValidateSignatureValues(byte(uintV), r, s, false) {
+		return errors.New("invalid signature values")
+	}
+
+	return nil
+}
+
+// FromAddress extracts the address for the account that signed the data.
+func FromAddress(value any, v, r, s *big.Int) (string, error) {
+
+	// Prepare the data for public key extraction.
+	data, err := stamp(value)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert the [R|S|V] format into the original 65 bytes.
+	sig := ToSignatureBytes(v, r, s)
+
+	// Capture the public key associated with this data and signature.
+	publicKey, err := crypto.SigToPub(data, sig)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract the account address from the public key.
+	return crypto.PubkeyToAddress(*publicKey).String(), nil
+}
+
+// ToSignatureBytes converts the r, s, v values into a slice of bytes
+// with the removal of the ardanID.
+func ToSignatureBytes(v, r, s *big.Int) []byte {
+	sig := make([]byte, crypto.SignatureLength)
+
+	rBytes := make([]byte, 32)
+	r.FillBytes(rBytes)
+	copy(sig, rBytes)
+
+	sBytes := make([]byte, 32)
+	s.FillBytes(sBytes)
+	copy(sig[32:], sBytes)
+
+	sig[64] = byte(v.Uint64() - ardanID)
+
+	return sig
+}
+
+// SignatureString returns the signature as a string.
+func SignatureString(v, r, s *big.Int) string {
+	return hexutil.Encode(ToSignatureBytesWithArdanID(v, r, s))
+}
+
+// ToSignatureBytesWithArdanID converts the r, s, v values into a slice of bytes
+// keeping the Ardan id.
+func ToSignatureBytesWithArdanID(v, r, s *big.Int) []byte {
+	sig := ToSignatureBytes(v, r, s)
+	sig[64] = byte(v.Uint64())
+
+	return sig
 }
 
 // =============================================================================
