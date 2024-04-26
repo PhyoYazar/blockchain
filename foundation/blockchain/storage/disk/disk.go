@@ -59,6 +59,27 @@ func (d *Disk) Write(blockData database.BlockData) error {
 	return nil
 }
 
+// GetBlock searches the blockchain on disk to locate and return the
+// contents of the specified block by number.
+func (d *Disk) GetBlock(num uint64) (database.BlockData, error) {
+
+	// Open the block file for the specified number.
+	f, err := os.OpenFile(d.getPath(num), os.O_RDONLY, 0600)
+	if err != nil {
+		return database.BlockData{}, err
+	}
+	defer f.Close()
+
+	// Decode the contents of the block.
+	var blockData database.BlockData
+	if err := json.NewDecoder(f).Decode(&blockData); err != nil {
+		return database.BlockData{}, err
+	}
+
+	// Return the block as a database block.
+	return blockData, nil
+}
+
 // getPath forms the path to the specified block.
 func (d *Disk) getPath(blockNum uint64) string {
 	name := strconv.FormatUint(blockNum, 10)

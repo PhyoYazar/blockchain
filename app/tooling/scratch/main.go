@@ -19,11 +19,39 @@ import (
 
 func main() {
 	// err := sign()
-	err := writeBlock()
+	// err := writeBlock()
+	err := readBlock()
 
 	if err != nil {
 		log.Fatalln(err)
 	}
+}
+
+func readBlock() error {
+	d, err := disk.New("zblock/miner1")
+	if err != nil {
+		return nil
+	}
+
+	blockData, err := d.GetBlock(1)
+	if err != nil {
+		return nil
+	}
+
+	fmt.Println(blockData)
+
+	block, err := database.ToBlock(blockData)
+	if err != nil {
+		return nil
+	}
+
+	if blockData.Header.TransRoot != block.MerkleTree.RootHex() {
+		return errors.New("merkle tree comparison failed")
+	}
+
+	fmt.Println("markle tree is matched!")
+
+	return nil
 }
 
 func writeBlock() error {
