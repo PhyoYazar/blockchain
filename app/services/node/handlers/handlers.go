@@ -11,6 +11,8 @@ import (
 	"github.com/PhyoYazar/blockchain/app/services/node/handlers/debug/checkgrp"
 	v1 "github.com/PhyoYazar/blockchain/app/services/node/handlers/v1"
 	"github.com/PhyoYazar/blockchain/business/web/v1/mid"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/state"
+	"github.com/PhyoYazar/blockchain/foundation/nameservice"
 	"github.com/PhyoYazar/blockchain/foundation/web"
 	"go.uber.org/zap"
 )
@@ -19,6 +21,8 @@ import (
 type MuxConfig struct {
 	Shutdown chan os.Signal
 	Log      *zap.SugaredLogger
+	State    *state.State
+	NS       *nameservice.NameService
 }
 
 // PublicMux constructs a http.Handler with all application routes defined.

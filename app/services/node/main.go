@@ -11,9 +11,12 @@ import (
 	"time"
 
 	"github.com/PhyoYazar/blockchain/app/services/node/handlers"
-	"github.com/PhyoYazar/blockchain/foundation/blockchain/genesis"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/state"
 	"github.com/PhyoYazar/blockchain/foundation/logger"
+	"github.com/PhyoYazar/blockchain/foundation/nameservice"
 	"github.com/ardanlabs/conf/v3"
+	"github.com/ethereum/go-ethereum/crypto"
 	"go.uber.org/zap"
 )
 
@@ -57,6 +60,13 @@ func run(log *zap.SugaredLogger) error {
 			PublicHost      string        `conf:"default:0.0.0.0:8080"`
 			PrivateHost     string        `conf:"default:0.0.0.0:9080"`
 		}
+		State struct {
+			Beneficiary string `conf:"default:miner1"`
+			DBPath      string `conf:"default:zblock/miner1/"`
+		}
+		NameService struct {
+			Folder string `conf:"default:zblock/accounts/"`
+		}
 	}{
 		Version: conf.Version{
 			Build: build,
@@ -97,13 +107,52 @@ func run(log *zap.SugaredLogger) error {
 	log.Infow("startup", "config", out)
 
 	// =========================================================================
+	// Name Service Support
+
+	// The nameservice package provides name resolution for account addresses.
+	// The names come from the file names in the zblock/accounts folder.
+	ns, err := nameservice.New(cfg.NameService.Folder)
+	if err != nil {
+		return fmt.Errorf("unable to load account name service: %w", err)
+	}
+
+	// Logging the accounts for documentation in the logs.
+	for account, name := range ns.Copy() {
+		log.Infow("startup", "status", "nameservice", "name", name, "account", account)
+	}
+
+	// =========================================================================
 	// Blockchain Support
 
-	gen, err := genesis.Load()
+	// Need to load the private key file for the configured beneficiary so the
+	// account can get credited with fees and tips.
+	path := fmt.Sprintf("%s%s.ecdsa", cfg.NameService.Folder, cfg.State.Beneficiary)
+	privateKey, err := crypto.LoadECDSA(path)
 	if err != nil {
-		return fmt.Errorf("genesis load: %w", err)
+		return fmt.Errorf("unable to load private key for node: %w", err)
 	}
-	log.Infow("startup", "gen", gen)
+
+	// The blockchain packages accept a function of this signature to allow the
+	// application to log. For now, these raw messages are sent to any websocket
+	// client that is connected into the system through the events package.
+	ev := func(v string, args ...any) {
+
+		s := fmt.Sprintf(v, args...)
+		log.Infow(s, "traceid", "00000000-0000-0000-0000-000000000000")
+
+	}
+
+	// The state value represents the blockchain node and manages the blockchain
+	// database and provides an API for application support.
+	state, err := state.New(state.Config{
+		BeneficiaryID: database.PublicKeyToAccountID(privateKey.PublicKey),
+		Host:          cfg.Web.PrivateHost,
+		DBPath:        cfg.State.DBPath,
+		EvHandler:     ev,
+	})
+	if err != nil {
+		return err
+	}
 
 	// =========================================================================
 	// Start Debug Service
@@ -145,6 +194,8 @@ func run(log *zap.SugaredLogger) error {
 	publicMux := handlers.PublicMux(handlers.MuxConfig{
 		Shutdown: shutdown,
 		Log:      log,
+		State:    state,
+		NS:       ns,
 	})
 
 	// Construct a server to service the requests against the mux.
