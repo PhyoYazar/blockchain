@@ -20,11 +20,11 @@ type Storage interface {
 
 // Database manages data related to accounts who have transacted on the blockchain.
 type Database struct {
-	mu      sync.RWMutex
-	genesis genesis.Genesis
-	// latestBlock Block
-	accounts map[AccountID]Account
-	storage  Storage
+	mu          sync.RWMutex
+	genesis     genesis.Genesis
+	latestBlock Block
+	accounts    map[AccountID]Account
+	storage     Storage
 }
 
 // New constructs a new database and applies account genesis information and
@@ -51,4 +51,12 @@ func New(genesis genesis.Genesis, storage Storage, evHandler func(v string, args
 // Close closes the open blocks database.
 func (db *Database) Close() {
 	db.storage.Close()
+}
+
+// LatestBlock returns the latest block.
+func (db *Database) LatestBlock() Block {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	return db.latestBlock
 }

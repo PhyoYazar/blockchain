@@ -24,6 +24,14 @@ func New() (*Mempool, error) {
 	}, nil
 }
 
+// Count returns the current number of transaction in the pool.
+func (mp *Mempool) Count() int {
+	mp.mu.RLock()
+	defer mp.mu.RUnlock()
+
+	return len(mp.pool)
+}
+
 // Upsert adds or replaces a transaction from the mempool.
 func (mp *Mempool) Upsert(tx database.BlockTx) error {
 	mp.mu.Lock()

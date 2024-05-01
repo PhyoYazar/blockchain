@@ -48,7 +48,9 @@ func PublicMux(cfg MuxConfig) http.Handler {
 
 	// Load the v1 routes.
 	v1.PublicRoutes(app, v1.Config{
-		Log: cfg.Log,
+		Log:   cfg.Log,
+		State: cfg.State,
+		NS:    cfg.NS,
 	})
 
 	return app

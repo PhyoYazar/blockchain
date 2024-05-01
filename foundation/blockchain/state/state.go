@@ -87,10 +87,9 @@ func New(cfg Config) (*State, error) {
 		evHandler:     ev,
 		allowMining:   true,
 
-		knownPeers: cfg.KnownPeers,
-		genesis:    genesis,
-		mempool:    mempool,
-		db:         db,
+		genesis: genesis,
+		mempool: mempool,
+		db:      db,
 	}
 
 	return &state, nil

@@ -21,16 +21,38 @@ type Handlers struct {
 	NS    *nameservice.NameService
 }
 
-// // Sample just provides a starting point for the class.
-// func (h Handlers) Sample(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
-// 	resp := struct {
-// 		Status string
-// 	}{
-// 		Status: "OK",
-// 	}
+// Start mining will allow us to trigger a mining event.
+func (h Handlers) StartMining(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+	block, err := h.State.MineNewBlock(ctx)
+	if err != nil {
+		return v1.NewRequestError(err, http.StatusBadRequest)
+	}
 
-// 	return web.Respond(ctx, w, resp, http.StatusOK)
-// }
+	h.Log.Infow("================================================================")
+	h.Log.Infow("MINED BLOCK", "nonce	  	  :", block.Header.Nonce)
+	h.Log.Infow("MINED BLOCK", "block hash   :", block.Hash())
+	h.Log.Infow("MINED BLOCK", "block header :", block.Header)
+	h.Log.Infow("================================================================")
+
+	status := struct {
+		Status string
+	}{
+		Status: "OK",
+	}
+
+	return web.Respond(ctx, w, status, http.StatusOK)
+}
+
+// Sample just provides a starting point for the class.
+func (h Handlers) Sample(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+	resp := struct {
+		Status string
+	}{
+		Status: "OK",
+	}
+
+	return web.Respond(ctx, w, resp, http.StatusOK)
+}
 
 // SubmitWalletTransaction adds new transactions to the mempool.
 func (h Handlers) SubmitWalletTransaction(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
@@ -62,4 +84,36 @@ func (h Handlers) SubmitWalletTransaction(ctx context.Context, w http.ResponseWr
 	}
 
 	return web.Respond(ctx, w, resp, http.StatusOK)
+}
+
+// Mempool returns the set of uncommitted transactions.
+func (h Handlers) Mempool(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
+	acct := web.Param(r, "account")
+
+	mempool := h.State.RetrieveMempool()
+
+	trans := []tx{}
+	for _, tran := range mempool {
+		if acct != "" && ((acct != string(tran.FromID)) && (acct != string(tran.ToID))) {
+			continue
+		}
+
+		trans = append(trans, tx{
+			FromAccount: tran.FromID,
+			FromName:    h.NS.Lookup(tran.FromID),
+			To:          tran.ToID,
+			ToName:      h.NS.Lookup(tran.ToID),
+			ChainID:     tran.ChainID,
+			Nonce:       tran.Nonce,
+			Value:       tran.Value,
+			Tip:         tran.Tip,
+			Data:        tran.Data,
+			TimeStamp:   tran.TimeStamp,
+			GasPrice:    tran.GasPrice,
+			GasUnits:    tran.GasUnits,
+			Sig:         tran.SignatureString(),
+		})
+	}
+
+	return web.Respond(ctx, w, trans, http.StatusOK)
 }
