@@ -13,6 +13,7 @@ import (
 	"github.com/PhyoYazar/blockchain/app/services/node/handlers"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/state"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/worker"
 	"github.com/PhyoYazar/blockchain/foundation/logger"
 	"github.com/PhyoYazar/blockchain/foundation/nameservice"
 	"github.com/ardanlabs/conf/v3"
@@ -150,9 +151,17 @@ func run(log *zap.SugaredLogger) error {
 		DBPath:        cfg.State.DBPath,
 		EvHandler:     ev,
 	})
+
 	if err != nil {
 		return err
 	}
+
+	defer state.Shutdown()
+
+	// The worker package implements the different workflows such as mining,
+	// transaction peer sharing, and peer updates. The worker will register
+	// itself with the state.
+	worker.Run(state, ev)
 
 	// =========================================================================
 	// Start Debug Service

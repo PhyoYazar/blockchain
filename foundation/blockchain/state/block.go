@@ -62,5 +62,11 @@ func (s *State) MineNewBlock(ctx context.Context) (database.Block, error) {
 	// 	return database.Block{}, err
 	// }
 
+	// HACK THIS FOR NOW
+	for _, tx := range trans {
+		s.evHandler("state: Remove Tx[%s]", tx)
+		s.mempool.Delete(tx)
+	}
+
 	return block, nil
 }

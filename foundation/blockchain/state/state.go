@@ -3,8 +3,6 @@
 package state
 
 import (
-	"sync"
-
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/genesis"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/mempool"
@@ -16,6 +14,14 @@ import (
 // EventHandler defines a function that is called when events
 // occur in the processing of persisting blocks.
 type EventHandler func(v string, args ...any)
+
+// Worker interface represents the behavior required to be implemented by any
+// package providing support for mining, peer updates, and transaction sharing.
+type Worker interface {
+	Shutdown()
+	SignalStartMining()
+	SignalCancelMining()
+}
 
 // =============================================================================
 
@@ -30,8 +36,8 @@ type Config struct {
 
 // State manages the blockchain database.
 type State struct {
-	mu          sync.RWMutex
-	resyncWG    sync.WaitGroup
+	// mu          sync.RWMutex
+	// resyncWG    sync.WaitGroup
 	allowMining bool
 
 	beneficiaryID database.AccountID
@@ -42,6 +48,8 @@ type State struct {
 	genesis genesis.Genesis
 	mempool *mempool.Mempool
 	db      *database.Database
+
+	Worker Worker
 }
 
 // New constructs a new blockchain for data management.
@@ -92,5 +100,27 @@ func New(cfg Config) (*State, error) {
 		db:      db,
 	}
 
+	// The Worker is not set here. The call to worker.Run will assign itself
+	// and start everything up and running for the node.
+
 	return &state, nil
+}
+
+// Shutdown cleanly brings the node down.
+func (s *State) Shutdown() error {
+	s.evHandler("state: shutdown: started")
+	defer s.evHandler("state: shutdown: completed")
+
+	// Make sure the database file is properly closed.
+	defer func() {
+		s.db.Close()
+	}()
+
+	// Stop all blockchain writing activity.
+	s.Worker.Shutdown()
+
+	// // Wait for any resync to finish.
+	// s.resyncWG.Wait()
+
+	return nil
 }
