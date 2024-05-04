@@ -64,6 +64,18 @@ func (db *Database) LatestBlock() Block {
 	return db.latestBlock
 }
 
+// CopyAccounts makes a copy of the current accounts in the database.
+func (db *Database) CopyAccounts() map[AccountID]Account {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	accounts := make(map[AccountID]Account)
+	for accountID, account := range db.accounts {
+		accounts[accountID] = account
+	}
+	return accounts
+}
+
 // HashState returns a hash based on the contents of the accounts and
 // their balances. This is added to each block and checked by peers.
 func (db *Database) HashState() string {
