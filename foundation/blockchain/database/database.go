@@ -16,7 +16,15 @@ import (
 type Storage interface {
 	Write(blockData BlockData) error
 	GetBlock(num uint64) (BlockData, error)
+	ForEach() Iterator
 	Close() error
+}
+
+// Iterator interface represents the behavior required to be implemented by any
+// package providing support to iterate over the blocks.
+type Iterator interface {
+	Next() (BlockData, error)
+	Done() bool
 }
 
 // =============================================================================
@@ -46,6 +54,28 @@ func New(genesis genesis.Genesis, storage Storage, evHandler func(v string, args
 			return nil, err
 		}
 		db.accounts[accountID] = newAccount(accountID, balance)
+	}
+
+	// Read all the blocks from storage.
+	iter := db.ForEach()
+	for block, err := iter.Next(); !iter.Done(); block, err = iter.Next() {
+		if err != nil {
+			return nil, err
+		}
+
+		// Validate the block values and cryptographic audit trail.
+		if err := block.ValidateBlock(db.latestBlock, db.HashState(), evHandler); err != nil {
+			return nil, err
+		}
+
+		// Update the database with the transaction information.
+		for _, tx := range block.MerkleTree.Values() {
+			db.ApplyTransaction(block, tx)
+		}
+		db.ApplyMiningReward(block)
+
+		// Update the current latest block.
+		db.latestBlock = block
 	}
 
 	return &db, nil
@@ -196,4 +226,33 @@ func (db *Database) ApplyTransaction(block Block, tx BlockTx) error {
 	}
 
 	return nil
+}
+
+// ForEach returns an iterator to walk through all the blocks
+// starting with block number 1.
+func (db *Database) ForEach() DatabaseIterator {
+	return DatabaseIterator{iterator: db.storage.ForEach()}
+}
+
+// =============================================================================
+
+// DatabaseIterator provides support for iterating over the blocks in the
+// blockchain database using the configured storage option.
+type DatabaseIterator struct {
+	iterator Iterator
+}
+
+// Next retrieves the next block from disk.
+func (di *DatabaseIterator) Next() (Block, error) {
+	blockData, err := di.iterator.Next()
+	if err != nil {
+		return Block{}, err
+	}
+
+	return ToBlock(blockData)
+}
+
+// Done returns the end of chain value.
+func (di *DatabaseIterator) Done() bool {
+	return di.iterator.Done()
 }

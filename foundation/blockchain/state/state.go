@@ -8,6 +8,7 @@ import (
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/genesis"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/mempool"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/peer"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/storage/disk"
 )
 
@@ -33,6 +34,7 @@ type Config struct {
 	BeneficiaryID database.AccountID
 	Host          string
 	DBPath        string
+	KnownPeers    *peer.PeerSet
 	EvHandler     EventHandler
 }
 
@@ -47,9 +49,10 @@ type State struct {
 	dbPath        string
 	evHandler     EventHandler
 
-	genesis genesis.Genesis
-	mempool *mempool.Mempool
-	db      *database.Database
+	knownPeers *peer.PeerSet
+	genesis    genesis.Genesis
+	mempool    *mempool.Mempool
+	db         *database.Database
 
 	Worker Worker
 }
@@ -97,9 +100,10 @@ func New(cfg Config) (*State, error) {
 		evHandler:     ev,
 		allowMining:   true,
 
-		genesis: genesis,
-		mempool: mempool,
-		db:      db,
+		knownPeers: cfg.KnownPeers,
+		genesis:    genesis,
+		mempool:    mempool,
+		db:         db,
 	}
 
 	// The Worker is not set here. The call to worker.Run will assign itself

@@ -12,6 +12,7 @@ import (
 
 	"github.com/PhyoYazar/blockchain/app/services/node/handlers"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
+	"github.com/PhyoYazar/blockchain/foundation/blockchain/peer"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/state"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/worker"
 	"github.com/PhyoYazar/blockchain/foundation/logger"
@@ -62,8 +63,9 @@ func run(log *zap.SugaredLogger) error {
 			PrivateHost     string        `conf:"default:0.0.0.0:9080"`
 		}
 		State struct {
-			Beneficiary string `conf:"default:miner1"`
-			DBPath      string `conf:"default:zblock/miner1/"`
+			Beneficiary string   `conf:"default:miner1"`
+			DBPath      string   `conf:"default:zblock/miner1/"`
+			OriginPeers []string `conf:"default:0.0.0.0:9080"`
 		}
 		NameService struct {
 			Folder string `conf:"default:zblock/accounts/"`
@@ -133,6 +135,13 @@ func run(log *zap.SugaredLogger) error {
 		return fmt.Errorf("unable to load private key for node: %w", err)
 	}
 
+	// A peer set is a collection of known nodes in the network so transactions
+	// and blocks can be shared.
+	peerSet := peer.NewPeerSet()
+	for _, host := range cfg.State.OriginPeers {
+		peerSet.Add(peer.New(host))
+	}
+
 	// The blockchain packages accept a function of this signature to allow the
 	// application to log. For now, these raw messages are sent to any websocket
 	// client that is connected into the system through the events package.
@@ -149,6 +158,7 @@ func run(log *zap.SugaredLogger) error {
 		BeneficiaryID: database.PublicKeyToAccountID(privateKey.PublicKey),
 		Host:          cfg.Web.PrivateHost,
 		DBPath:        cfg.State.DBPath,
+		KnownPeers:    peerSet,
 		EvHandler:     ev,
 	})
 

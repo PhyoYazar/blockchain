@@ -4,7 +4,9 @@ package disk
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path"
 	"strconv"
@@ -80,8 +82,47 @@ func (d *Disk) GetBlock(num uint64) (database.BlockData, error) {
 	return blockData, nil
 }
 
+// ForEach returns an iterator to walk through all the blocks
+// starting with block number 1.
+func (d *Disk) ForEach() database.Iterator {
+	return &diskIterator{storage: d}
+}
+
+// =============================================================================
+
 // getPath forms the path to the specified block.
 func (d *Disk) getPath(blockNum uint64) string {
 	name := strconv.FormatUint(blockNum, 10)
 	return path.Join(d.dbPath, fmt.Sprintf("%s.json", name))
+}
+
+// =============================================================================
+
+// diskIterator represents the iteration implementation for walking
+// through and reading blocks on disk. This implements the database
+// Iterator interface.
+type diskIterator struct {
+	storage *Disk  // Access to the storage API.
+	current uint64 // Currenet block number being iterated over.
+	eoc     bool   // Represents the iterator is at the end of the chain.
+}
+
+// Next retrieves the next block from disk.
+func (di *diskIterator) Next() (database.BlockData, error) {
+	if di.eoc {
+		return database.BlockData{}, errors.New("end of chain")
+	}
+
+	di.current++
+	blockData, err := di.storage.GetBlock(di.current)
+	if errors.Is(err, fs.ErrNotExist) {
+		di.eoc = true
+	}
+
+	return blockData, err
+}
+
+// Done returns the end of chain value.
+func (di *diskIterator) Done() bool {
+	return di.eoc
 }
