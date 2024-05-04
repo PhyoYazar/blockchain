@@ -115,6 +115,12 @@ func (tx SignedTx) Validate(chainID uint16) error {
 	return nil
 }
 
+// FromAccount extracts the account id that signed the transaction.
+func (tx SignedTx) FromAccount() (AccountID, error) {
+	address, err := signature.FromAddress(tx.Tx, tx.V, tx.R, tx.S)
+	return AccountID(address), err
+}
+
 // SignatureString returns the signature as a string.
 func (tx SignedTx) SignatureString() string {
 	return signature.SignatureString(tx.V, tx.R, tx.S)

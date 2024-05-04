@@ -74,8 +74,8 @@ func (w *Worker) Shutdown() {
 	// w.evHandler("worker: shutdown: stop ticker")
 	// w.ticker.Stop()
 
-	// w.evHandler("worker: shutdown: signal cancel mining")
-	// w.SignalCancelMining()
+	w.evHandler("worker: shutdown: signal cancel mining")
+	w.SignalCancelMining()
 
 	w.evHandler("worker: shutdown: terminate goroutines")
 	close(w.shut)

@@ -3,6 +3,8 @@
 package state
 
 import (
+	"sync"
+
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/database"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/genesis"
 	"github.com/PhyoYazar/blockchain/foundation/blockchain/mempool"
@@ -36,8 +38,8 @@ type Config struct {
 
 // State manages the blockchain database.
 type State struct {
-	// mu          sync.RWMutex
-	// resyncWG    sync.WaitGroup
+	mu          sync.RWMutex
+	resyncWG    sync.WaitGroup
 	allowMining bool
 
 	beneficiaryID database.AccountID
